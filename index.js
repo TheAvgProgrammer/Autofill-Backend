@@ -1,7 +1,8 @@
-require('dotenv').config()
-const express = require('express')
-const { createClient } = require('@supabase/supabase-js')
-const { v4: uuidv4 } = require('uuid')
+import 'dotenv/config'
+import express from 'express'
+import { createClient } from '@supabase/supabase-js'
+import { v4 as uuidv4 } from 'uuid'
+
 
 const app = express()
 const port = 3000
@@ -12,8 +13,8 @@ app.use(express.json({ limit: '50mb' }))
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_KEY
-const bucketName = process.env.SUPABASE_BUCKET_NAME || 'images'
-const tableName = process.env.SUPABASE_TABLE_NAME || 'autofill_data'
+const bucketName = process.env.SUPABASE_BUCKET_NAME
+const tableName = process.env.SUPABASE_TABLE_NAME 
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
@@ -22,21 +23,21 @@ app.get('/', (req, res) => {
 })
 
 // POST endpoint to upload image and insert data
-app.post('/upload', async (req, res) => {
+app.post('/api/v1/upload', async (req, res) => {
   try {
-    const { clientName, image } = req.body
+    const { client_name, screenshot } = req.body
 
     // Validate input
-    if (!clientName || !image) {
+    if (!client_name || !screenshot) {
       return res.status(400).json({ 
-        error: 'Missing required fields: clientName and image are required' 
+        error: 'Missing required fields: client_name and screenshot are required' 
       })
     }
 
-    // Validate that image is a data URL
-    if (!image.startsWith('data:image/')) {
+    // Validate that screenshot is a data URL
+    if (!screenshot.startsWith('data:image/')) {
       return res.status(400).json({ 
-        error: 'Invalid image format: must be a data URL' 
+        error: 'Invalid screenshot format: must be a data URL' 
       })
     }
 
@@ -45,7 +46,7 @@ app.post('/upload', async (req, res) => {
 
     // Extract the base64 data from the data URL
     // Format: data:image/png;base64,iVBORw0KG...
-    const matches = image.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
+    const matches = screenshot.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
     if (!matches) {
       return res.status(400).json({ 
         error: 'Invalid data URL format' 
@@ -55,6 +56,9 @@ app.post('/upload', async (req, res) => {
     const fileExtension = matches[1]
     const base64Data = matches[2]
     const imageBuffer = Buffer.from(base64Data, 'base64')
+    console.log('SUPABASE_URL:', process.env.SUPABASE_URL)
+    console.log('SUPABASE_KEY length:', process.env.SUPABASE_KEY?.length)
+
 
     // Upload image to Supabase storage with the generated ID as filename
     const fileName = `${id}.${fileExtension}`
@@ -62,7 +66,7 @@ app.post('/upload', async (req, res) => {
       .from(bucketName)
       .upload(fileName, imageBuffer, {
         contentType: `image/${fileExtension}`,
-        upsert: false
+        upsert: true
       })
 
     if (uploadError) {
@@ -80,8 +84,8 @@ app.post('/upload', async (req, res) => {
       .insert([
         {
           id: id,
-          client_name: clientName,
-          date: currentDate
+          client_name: client_name,
+          applied_at: currentDate
         }
       ])
       .select()
@@ -97,13 +101,13 @@ app.post('/upload', async (req, res) => {
     }
 
     // Return success response
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Image uploaded and data inserted successfully',
       data: {
         id: id,
-        clientName: clientName,
-        date: currentDate,
+        client_name: client_name,
+        applied_at: currentDate,
         imageUrl: uploadData.path
       }
     })
